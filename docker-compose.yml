@@ -1,6 +1,21 @@
 version: "3.8"
 
 services:
+  nginx:
+    image: nginx:alpine
+    container_name: myapp-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    networks:
+      - app-network
+    volumes:
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+      - ./nginx/html/:/usr/share/nginx/html/
+    depends_on:
+      - frontend
+      - backend
+
   backend:
     build:
       context: ./backend
@@ -16,6 +31,10 @@ services:
       - ./backend/.env
     networks:
       - app-network
+    user: "${UID}:${GID}"
+    environment:
+      - UID=${UID}
+      - GID=${GID}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 30s
@@ -23,31 +42,57 @@ services:
       retries: 5
       start_period: 5s
 
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
+    container_name: myapp-db
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    env_file:
+      - ./.env
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: 'true'
+      MYSQL_DATABASE: $DB_DATABASE
+      MYSQL_USER: $DB_USERNAME
+      MYSQL_PASSWORD: $DB_PASSWORD
+      LANG: es_MX.UTF-8
+      LANG_WHICH: es
+      LANG_WHERE: ES
+      LANGUAGE: es_MX.UTF-8
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - app-network
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: myapp-frontend
     restart: unless-stopped
-    # 1) Montamos el código y los node_modules
+    ports:
+      - "3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    # 2) Le decimos que ejecute el dev-server en vez de build/serve
     command: npm start
-    # 3) Forzamos polling para que detecte cambios dentro de Docker
     environment:
+      - HOST=0.0.0.0
+      - WDS_SOCKET_HOST=localhost
+      - WDS_SOCKET_PORT=3000
+      - WDS_SOCKET_PATH=/ws
+      - WDS_SOCKET_PROTOCOL=ws
       - CHOKIDAR_USEPOLLING=true
-      - CHOKIDAR_INTERVAL=100
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    env_file:
-      - ./frontend/.env
     networks:
       - app-network
+    depends_on:
+      - backend
 
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  dbdata:

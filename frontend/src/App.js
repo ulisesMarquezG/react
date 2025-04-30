@@ -1,42 +1,36 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import LoginForm from './components/LoginForm';
-import Home from './components/Home';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './layouts/ProtectedRoute';
+import PublicRoute from './layouts/PublicRoute';
 
-function ProtectedRoute({ children }) {
-  const { token } = useAuth();
-  console.log(children);
-  return token ? children : <Navigate to="/login" />;
-}
-
-function Profile() {
-  // al montar, podrías llamar a /profile con el header Authorization
-  return <h2>Perfil protegido</h2>;
-}
+const LoginForm = lazy(() => import('./components/LoginForm'));
+const Home = lazy(() => import('./components/Home'));
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          {/* LOGIN */}
-          <Route path="/login" element={<LoginForm />} />
-          {/* HOME */}
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          } />
-          {/* PROFILE */}
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+        <Suspense fallback={<div>Loading...</div>}>
+          <Routes>
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <LoginForm />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   );
